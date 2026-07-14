@@ -1,0 +1,5 @@
+# Illustrative only. Copy to accounts.py and fill credentials.
+API_KEYS = ["sk-example"]
+
+# True = 使用 opencode 代理池；False = 使用 API Key
+USE_PROXY_POOL = True

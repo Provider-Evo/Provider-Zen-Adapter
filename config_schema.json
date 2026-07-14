@@ -1,0 +1,21 @@
+{
+  "type": "object",
+  "properties": {
+    "use_proxy_pool": {
+      "type": "boolean",
+      "title": "使用代理池",
+      "default": true,
+      "description": "True 使用 opencode 代理池；False 使用 API Key"
+    },
+    "local_proxies": {
+      "type": "array",
+      "title": "本地代理列表",
+      "items": {
+        "type": "string"
+      },
+      "default": [],
+      "description": "格式 ip:port，注入到 opencode 代理池中（use_proxy_pool=true 时生效）"
+    }
+  },
+  "required": []
+}

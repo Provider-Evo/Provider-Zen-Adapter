@@ -1,0 +1,23 @@
+{
+  "manifest_version": 2,
+  "id": "nichengfuben.provider-zen-adapter",
+  "name": "Provider Zen Adapter",
+  "version": "1.0.0",
+  "description": "zen 平台：USE_PROXY_POOL 切换 opencode 代理池与 API Key 模式",
+  "plugin_type": "platform",
+  "author": {
+    "name": "nichengfuben"
+  },
+  "host_application": {
+    "min_version": "2.2.268",
+    "max_version": "2.2.99"
+  },
+  "sdk": {
+    "min_version": "0.3.0",
+    "max_version": "0.99.99"
+  },
+  "dependencies": [],
+  "capabilities": [
+    "platform.adapter"
+  ]
+}
