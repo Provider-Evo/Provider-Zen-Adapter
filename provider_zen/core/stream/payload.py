@@ -1,67 +1,62 @@
-"""sse 模块 — Provider 适配器层。
+"""payloads 模块 — Provider 适配器层。
 
 职责：
-    提供流式响应的 Server-Sent Events 解析与重组工具。
+    集中放置 provider 请求 payload 模板与序列化函数。
 
 本文件为 Provider-Evo 项目标准模块；保持单文件 200-400 行。
 修改指引参见文件末尾的"本模块对外契约"章节（共 20 条）。
 """
 
 
-
-from __future__ import annotations
-
-from typing import Any, Dict, Optional, Union
-
-from provider_sdk.extensions.platform.sse_common import load_sse_json
-
-__all__ = ["parse_sse_line"]
+from typing import Any, Dict, List
 
 
-def parse_sse_line(data_str: str) -> Optional[Union[str, Dict[str, Any]]]:
-    """解析 SSE data 字段内容（OpenAI 兼容 + reasoning + tool_calls）。
+def build_payload(
+    messages: List[Dict[str, Any]],
+    model: str = "",
+    stream: bool = True,
+    **kw: Any,
+) -> Dict[str, Any]:
+    """构建聊天请求体。
 
     Args:
-        data_str: data: 前缀之后的字符串，已去除前缀和空白。
+        messages: 消息列表。
+        model: 模型名。
+        stream: 是否流式。
+        **kw: 额外参数（temperature, top_p, max_tokens, stop）。
 
     Returns:
-        str（文本片段）、dict（thinking/tool_calls/usage）或 None（跳过）。
+        请求体字典。
     """
-    obj = load_sse_json(data_str)
-    if obj is None:
-        return None
-
-    choice = (obj.get("choices") or [{}])[0]
-    delta = choice.get("delta", {})
-
-    reasoning = delta.get("reasoning") or delta.get("reasoning_content")
-    if reasoning:
-        return {"thinking": reasoning}
-
-    content = delta.get("content", "")
-    if content:
-        return content
-
-    tc = delta.get("tool_calls")
-    if tc:
-        return {"tool_calls": tc}
-
-    usage = obj.get("usage")
-    if usage and isinstance(usage, dict):
-        return {"usage": usage}
-
-    return None
+    payload: Dict[str, Any] = {
+        "model": model,
+        "messages": messages,
+        "stream": stream,
+    }
+    if kw.get("temperature") is not None:
+        payload["temperature"] = kw["temperature"]
+    if kw.get("top_p") is not None:
+        payload["top_p"] = kw["top_p"]
+    if kw.get("max_tokens") is not None:
+        payload["max_tokens"] = kw["max_tokens"]
+    if kw.get("stop"):
+        payload["stop"] = kw["stop"]
+    if kw.get("tools"):
+        payload["tools"] = kw["tools"]
+    if kw.get("tool_choice"):
+        payload["tool_choice"] = kw["tool_choice"]
+    return payload
 
 # =======================================================================
 # 重导出 — 同包内协同模块的公共符号（保持外部 ``from .. import`` 路径稳定）
 # =======================================================================
 
-from .payload import (
-    build_payload,
+from .sse import (
+    parse_sse_line,
 )
 
 __all__ = [
-    "build_payload",
+    "parse_sse_line",
 ]
 
 # =======================================================================
@@ -105,9 +100,9 @@ __all__ = [
 # 重导出 — 同包协同模块（保持外部 ``from .. import`` 路径稳定）
 # =======================================================================
 
-from .payload import (
-    build_payload,
+from .sse import (
+    parse_sse_line,
 )
 __all__ = [
-    "build_payload",
+    "parse_sse_line",
 ]

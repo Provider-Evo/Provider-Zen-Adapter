@@ -16,18 +16,20 @@ from typing import Any, Dict, List, Optional, Union
 from provider_sdk.extensions.platform.sse_common import load_sse_json
 
 
-def build_headers(proxy_addr: str = "") -> Dict[str, str]:
-    """Build request headers.
+def build_headers(api_key: str = "") -> Dict[str, str]:
+    """构建请求头。
 
     Args:
-        proxy_addr: Proxy address (informational only, not used in headers).
+        api_key: Zen API Key。
 
     Returns:
-        Header dictionary.
+        请求头字典。
     """
     headers: Dict[str, str] = {
         "Content-Type": "application/json",
     }
+    if api_key:
+        headers["Authorization"] = "Bearer {}".format(api_key)
     return headers
 
 
@@ -37,16 +39,16 @@ def build_payload(
     stream: bool = True,
     **kw: Any,
 ) -> Dict[str, Any]:
-    """Build chat completion request body.
+    """构建聊天请求体。
 
     Args:
-        messages: Message list.
-        model: Model name.
-        stream: Whether to stream the response.
-        **kw: Extra parameters (temperature, top_p, max_tokens, stop, tools, tool_choice).
+        messages: 消息列表。
+        model: 模型名。
+        stream: 是否流式。
+        **kw: 额外参数（temperature, top_p, max_tokens, stop）。
 
     Returns:
-        Request body dictionary.
+        请求体字典。
     """
     payload: Dict[str, Any] = {
         "model": model,
@@ -69,14 +71,13 @@ def build_payload(
 
 
 def parse_sse_line(data_str: str) -> Optional[Union[str, Dict[str, Any]]]:
-    """Parse SSE data field content (OpenAI-compatible + reasoning + tool_calls).
+    """解析 SSE data 字段内容（OpenAI 兼容 + reasoning + tool_calls）。
 
     Args:
-        data_str: String after the ``data:`` prefix, with leading
-            whitespace already stripped.
+        data_str: data: 前缀之后的字符串，已去除前缀和空白。
 
     Returns:
-        str (text chunk), dict (thinking/tool_calls/usage), or None (skip).
+        str（文本片段）、dict（thinking/tool_calls/usage）或 None（跳过）。
     """
     obj = load_sse_json(data_str)
     if obj is None:
@@ -103,9 +104,4 @@ def parse_sse_line(data_str: str) -> Optional[Union[str, Dict[str, Any]]]:
 
     return None
 
-# =======================================================================
-# 重导出 — 同包内协同模块的公共符号（保持外部 ``from .. import`` 路径稳定）
-# =======================================================================
-
-__all__ = [
-]
+__all__: List[str] = []

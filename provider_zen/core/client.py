@@ -8,11 +8,11 @@ from typing import Any, AsyncGenerator, Dict, List, Optional, Union
 
 import aiohttp
 
-from src.core.dispatch.candidate import Candidate, make_id
+from src.core.dispatch.cand import Candidate, make_id
 from src.core.utils.errors import PlatformError
 from src.foundation.logger import get_logger
 from ..accounts import API_KEYS
-from .constants import (
+from .support.consts import (
     BASE_URL,
     CAPS,
     CHAT_PATH,
@@ -21,7 +21,7 @@ from .constants import (
     RATE_LIMIT_COOLDOWN,
     RECOVERY_INTERVAL,
 )
-from .utils import build_headers, build_payload, parse_sse_line
+from .support.utils import build_headers, build_payload, parse_sse_line
 
 logger = get_logger(__name__)
 MAX_RETRIES: int = 3
@@ -263,70 +263,8 @@ class ZenClient:
                     total=600 if stream else 120,
                 ),
             ) as resp:
-                if resp.status != 200:
-                    body = await resp.text()
-                    ks.mark_failure(resp.status)
-                    raise PlatformError(
-                        "zen HTTP{}: {}".format(resp.status, body[:200])
-                    )
-
-                if not stream:
-                    data = await resp.json()
-                    ks.mark_success()
-                    choice = (data.get("choices") or [{}])[0]
-                    msg = choice.get("message", {})
-                    content = msg.get("content", "")
-                    if content:
-                        yield content
-                    tc = msg.get("tool_calls")
-                    if tc:
-                        yield {"tool_calls": tc}
-                    usage = data.get("usage")
-                    if usage:
-                        yield {"usage": {
-                            "prompt_tokens": usage.get("prompt_tokens", 0),
-                            "completion_tokens": usage.get("completion_tokens", 0),
-                        }}
-                else:
-                    _tc_accumulator: Dict[int, Dict[str, Any]] = {}
-                    async for line in resp.content:
-                        text = line.decode("utf-8", errors="replace").strip()
-                        if not text or not text.startswith("data:"):
-                            continue
-                        data_str = text[5:].strip()
-                        if data_str == "[DONE]":
-                            break
-                        parsed = parse_sse_line(data_str)
-                        if parsed is None:
-                            continue
-                        if isinstance(parsed, dict) and "tool_calls" in parsed:
-                            # Accumulate streaming tool_calls deltas
-                            for tc_delta in parsed["tool_calls"]:
-                                idx = tc_delta.get("index", 0)
-                                if idx not in _tc_accumulator:
-                                    _tc_accumulator[idx] = {
-                                        "id": "",
-                                        "type": "function",
-                                        "function": {"name": "", "arguments": ""},
-                                    }
-                                acc = _tc_accumulator[idx]
-                                if tc_delta.get("id"):
-                                    acc["id"] = tc_delta["id"]
-                                if tc_delta.get("type"):
-                                    acc["type"] = tc_delta["type"]
-                                fn = tc_delta.get("function") or {}
-                                if fn.get("name"):
-                                    acc["function"]["name"] += fn["name"]
-                                if fn.get("arguments"):
-                                    acc["function"]["arguments"] += fn["arguments"]
-                        else:
-                            yield parsed
-                    if _tc_accumulator:
-                        tool_calls = [
-                            v for _, v in sorted(_tc_accumulator.items())
-                        ]
-                        yield {"tool_calls": tool_calls}
-                    ks.mark_success()
+                async for chunk in self._dispatch_response(resp, ks, stream):
+                    yield chunk
         except PlatformError:
             raise
         except Exception as e:
@@ -334,6 +272,96 @@ class ZenClient:
             raise PlatformError(
                 "zen请求失败: {}".format(e)
             ) from e
+
+    async def _dispatch_response(
+        self, resp: aiohttp.ClientResponse, ks: "_KeyState", stream: bool
+    ) -> AsyncGenerator[Union[str, Dict[str, Any]], None]:
+        """校验HTTP状态码后，将响应分发给非流式/流式处理器。"""
+        if resp.status != 200:
+            body = await resp.text()
+            ks.mark_failure(resp.status)
+            raise PlatformError(
+                "zen HTTP{}: {}".format(resp.status, body[:200])
+            )
+
+        if not stream:
+            async for chunk in self._handle_non_stream_response(resp, ks):
+                yield chunk
+        else:
+            async for chunk in self._handle_stream_response(resp, ks):
+                yield chunk
+
+    async def _handle_non_stream_response(
+        self, resp: aiohttp.ClientResponse, ks: "_KeyState"
+    ) -> AsyncGenerator[Union[str, Dict[str, Any]], None]:
+        """解析非流式响应并产出内容/工具调用/用量。"""
+        data = await resp.json()
+        ks.mark_success()
+        choice = (data.get("choices") or [{}])[0]
+        msg = choice.get("message", {})
+        content = msg.get("content", "")
+        if content:
+            yield content
+        tc = msg.get("tool_calls")
+        if tc:
+            yield {"tool_calls": tc}
+        usage = data.get("usage")
+        if usage:
+            yield {"usage": {
+                "prompt_tokens": usage.get("prompt_tokens", 0),
+                "completion_tokens": usage.get("completion_tokens", 0),
+            }}
+
+    async def _handle_stream_response(
+        self, resp: aiohttp.ClientResponse, ks: "_KeyState"
+    ) -> AsyncGenerator[Union[str, Dict[str, Any]], None]:
+        """解析SSE流式响应，累积工具调用增量并产出内容。"""
+        _tc_accumulator: Dict[int, Dict[str, Any]] = {}
+        async for line in resp.content:
+            text = line.decode("utf-8", errors="replace").strip()
+            if not text or not text.startswith("data:"):
+                continue
+            data_str = text[5:].strip()
+            if data_str == "[DONE]":
+                break
+            parsed = parse_sse_line(data_str)
+            if parsed is None:
+                continue
+            if isinstance(parsed, dict) and "tool_calls" in parsed:
+                # Accumulate streaming tool_calls deltas
+                self._accumulate_tool_call_deltas(_tc_accumulator, parsed["tool_calls"])
+            else:
+                yield parsed
+        if _tc_accumulator:
+            tool_calls = [
+                v for _, v in sorted(_tc_accumulator.items())
+            ]
+            yield {"tool_calls": tool_calls}
+        ks.mark_success()
+
+    @staticmethod
+    def _accumulate_tool_call_deltas(
+        accumulator: Dict[int, Dict[str, Any]], tc_deltas: List[Dict[str, Any]]
+    ) -> None:
+        """将一批流式工具调用增量合并进累积器。"""
+        for tc_delta in tc_deltas:
+            idx = tc_delta.get("index", 0)
+            if idx not in accumulator:
+                accumulator[idx] = {
+                    "id": "",
+                    "type": "function",
+                    "function": {"name": "", "arguments": ""},
+                }
+            acc = accumulator[idx]
+            if tc_delta.get("id"):
+                acc["id"] = tc_delta["id"]
+            if tc_delta.get("type"):
+                acc["type"] = tc_delta["type"]
+            fn = tc_delta.get("function") or {}
+            if fn.get("name"):
+                acc["function"]["name"] += fn["name"]
+            if fn.get("arguments"):
+                acc["function"]["arguments"] += fn["arguments"]
 
     async def close(self) -> None:
         """清理资源。"""

@@ -1,6 +1,0 @@
-# Copy to accounts.py
-# True: opencode 代理池策略（含直连选择）
-# False: zen API Key 策略（无代理选择）
-USE_PROXY_POOL = True
-API_KEYS = []
-LOCAL_PROXIES = []

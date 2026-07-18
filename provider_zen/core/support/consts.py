@@ -1,68 +1,45 @@
-"""sse 模块 — Provider 适配器层。
+"""constants 模块 — Provider 适配器层。
 
 职责：
-    提供流式响应的 Server-Sent Events 解析与重组工具。
+    集中放置 provider 常量定义（模型名、URL 模板、错误码等）。
 
 本文件为 Provider-Evo 项目标准模块；保持单文件 200-400 行。
 修改指引参见文件末尾的"本模块对外契约"章节（共 20 条）。
 """
 
 
+from typing import Dict, List
 
-from __future__ import annotations
+BASE_URL: str = "https://opencode.ai/zen/v1"
+CHAT_PATH: str = "/chat/completions"
+MODELS_PATH: str = "/models"
 
-from typing import Any, Dict, Optional, Union
+RATE_LIMIT_COOLDOWN: int = 30
+RECOVERY_INTERVAL: int = 60
 
-from provider_sdk.extensions.platform.sse_common import load_sse_json
-
-__all__ = ["parse_sse_line"]
-
-
-def parse_sse_line(data_str: str) -> Optional[Union[str, Dict[str, Any]]]:
-    """解析 SSE data 字段内容（OpenAI 兼容 + reasoning + tool_calls）。
-
-    Args:
-        data_str: data: 前缀之后的字符串，已去除前缀和空白。
-
-    Returns:
-        str（文本片段）、dict（thinking/tool_calls/usage）或 None（跳过）。
-    """
-    obj = load_sse_json(data_str)
-    if obj is None:
-        return None
-
-    choice = (obj.get("choices") or [{}])[0]
-    delta = choice.get("delta", {})
-
-    reasoning = delta.get("reasoning") or delta.get("reasoning_content")
-    if reasoning:
-        return {"thinking": reasoning}
-
-    content = delta.get("content", "")
-    if content:
-        return content
-
-    tc = delta.get("tool_calls")
-    if tc:
-        return {"tool_calls": tc}
-
-    usage = obj.get("usage")
-    if usage and isinstance(usage, dict):
-        return {"usage": usage}
-
-    return None
-
-# =======================================================================
-# 重导出 — 同包内协同模块的公共符号（保持外部 ``from .. import`` 路径稳定）
-# =======================================================================
-
-from .payload import (
-    build_payload,
-)
-
-__all__ = [
-    "build_payload",
+MODELS: List[str] = [
+    "mimo-v2.5-free",
+    "deepseek-v4-flash-free",
+    "qwen3.6-plus-free",
+    "minimax-m3-free",
+    "nemotron-3-ultra-free",
+    "north-mini-code-free",
 ]
+
+CAPS: Dict[str, bool] = {
+    "chat": True,
+    "completions": True,
+    "responses": True,
+    "vision": True,
+    "tools": True,
+    "native_tools": True,
+    "thinking": True,
+}
+
+FETCH_MODELS_ENABLED: bool = True
+MODEL_FETCH_INTERVAL: int = 86400
+
+FILTER_PAID_MODELS: bool = True
 
 # =======================================================================
 # 相关模块
@@ -105,9 +82,4 @@ __all__ = [
 # 重导出 — 同包协同模块（保持外部 ``from .. import`` 路径稳定）
 # =======================================================================
 
-from .payload import (
-    build_payload,
-)
-__all__ = [
-    "build_payload",
-]
+__all__: List[str] = []

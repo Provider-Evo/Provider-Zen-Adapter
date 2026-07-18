@@ -3,7 +3,7 @@ adaptercore 模块。
 
 本文件为 Provider-Evo 项目标准模块，使用以下约定：
 
-- 模块路径：provider-plugin.Provider-Zen-Adapter.provider_zen.core.adaptercore
+- 模块路径：provider-plugin.Provider-Zen-Adapter.provider_zen.core.acore
 - 文件名：adaptercore.py
 - 父包：provider-plugin/Provider-Zen-Adapter/provider_zen/core
 
@@ -43,11 +43,11 @@ from typing import Any, AsyncGenerator, Dict, List, Optional, Union
 
 import aiohttp
 
-from src.core.dispatch.candidate import Candidate
+from src.core.dispatch.cand import Candidate
 from src.core.utils.compat.models_cache import ModelsCache
 from src.foundation.logger import get_logger
 from provider_sdk.extensions.platform.adapter import PlatformAdapter
-from .constants import (
+from .support.consts import (
     CAPS,
     FETCH_MODELS_ENABLED,
     MODEL_FETCH_INTERVAL,
@@ -56,7 +56,7 @@ from .constants import (
 
 logger = get_logger(__name__)
 
-from .config_seed import load_use_proxy_pool
+from .support.config_seed import load_use_proxy_pool
 
 
 class ZenAdapter(PlatformAdapter):
