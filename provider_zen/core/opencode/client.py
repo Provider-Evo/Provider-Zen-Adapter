@@ -13,7 +13,7 @@ from src.foundation.logger import get_logger
 from .consts import CAPS, MODELS, MODELS_PATH, FILTER_PAID_MODELS, BASE_URL, MAX_RETRIES, PROXY_FETCH_ENABLED, PROXY_SCORE_PERSIST_PATH
 from .proxy.poolshr import OpencodePoolMixin
 from .reqshr import OpencodeRequestMixin
-from .proxy.pxypool import pxypool
+from .proxy.pxypool import ProxyPool
 from .proxy.pxyscore import DIRECT, ProxyPoolSelector
 
 logger = get_logger(__name__)
