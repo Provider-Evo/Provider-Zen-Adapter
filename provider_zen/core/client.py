@@ -1,7 +1,10 @@
-"""Zen HTTP客户端"""
-
 from __future__ import annotations
 
+from pathlib import Path
+
+from src.foundation.config.reader import load_plugin_api_keys
+
+_PLUGIN_DIR = Path(__file__).resolve().parents[2]
 import asyncio
 import time
 from typing import Any, AsyncGenerator, Dict, List, Optional, Union
@@ -104,7 +107,7 @@ class ZenClient:
     async def init_immediate(self, session: aiohttp.ClientSession) -> None:
         """立即初始化，不阻塞。"""
         self._session = session
-        self._keys = [_KeyState(k) for k in API_KEYS if k and k.strip()]
+        self._keys = [_KeyState(k) for k in load_plugin_api_keys(_PLUGIN_DIR, API_KEYS)]
         logger.debug(
             "zen客户端初始化完成, %s个APIKey", len(self._keys)
         )
