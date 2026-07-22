@@ -7,8 +7,6 @@ from typing import Any, AsyncGenerator, Dict, List, Optional, Union
 
 import aiohttp
 
-from provider_sdk.model_ids import ModelIdRegistry
-
 from src.core.dispatch.cand import Candidate, make_id
 from src.core.utils.errors import PlatformError
 from src.foundation.config.reader import load_plugin_api_keys
@@ -19,7 +17,6 @@ from .support.consts import (
     CAPS,
     CHAT_PATH,
     FILTER_PAID_MODELS,
-    MODELS,
     MODELS_PATH,
     RATE_LIMIT_COOLDOWN,
     RECOVERY_INTERVAL,
@@ -103,9 +100,7 @@ class ZenClient:
 
     def __init__(self) -> None:
         self._session: Optional[aiohttp.ClientSession] = None
-        self._model_registry = ModelIdRegistry("zen")
-        self._model_registry.load()
-        self._models: List[str] = self._model_registry.merge_fallback(MODELS)
+        self._models: List[str] = []
         self._keys: List[_KeyState] = []
 
     async def init_immediate(self, session: aiohttp.ClientSession) -> None:
@@ -163,11 +158,10 @@ class ZenClient:
                     ]
                     # If FILTER_PAID_MODELS is True, only keep free models
                     if FILTER_PAID_MODELS:
-                        filtered = [
+                        return [
                             m for m in all_models if m.endswith("-free")
                         ]
-                        return self._model_registry.register_many(filtered)
-                    return self._model_registry.register_many(all_models)
+                    return all_models
                 return []
         except Exception as e:
             logger.warning("zen拉取模型列表异常: %s", e)
@@ -179,10 +173,7 @@ class ZenClient:
         Args:
             models: 新的模型列表。
         """
-        self._models = self._model_registry.register_many(models)
-
-    def get_models(self) -> List[str]:
-        return list(self._models)
+        self._models = list(models)
 
     def _find_key(self, candidate: Candidate) -> Optional[_KeyState]:
         """根据候选项找到对应的KeyState。"""
@@ -225,7 +216,6 @@ class ZenClient:
         **kw: Any,
     ) -> AsyncGenerator[Union[str, Dict[str, Any]], None]:
         """执行聊天补全，含重试。"""
-        model = self._model_registry.resolve_upstream(model)
         last_exc: Optional[Exception] = None
         for attempt in range(MAX_RETRIES + 1):
             if attempt > 0:
